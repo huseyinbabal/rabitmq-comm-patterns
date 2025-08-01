@@ -229,16 +229,6 @@ mvn clean package
 java -jar target/rabbitmq-comm-patterns-0.0.1-SNAPSHOT.jar
 ```
 
-### With Docker
-
-```bash
-# Build image
-docker build -t rabbitmq-patterns .
-
-# Run with docker-compose (includes RabbitMQ)
-docker-compose up -d
-```
-
 ## 🧪 Testing the Patterns
 
 ### 1. Test Order Processing
