@@ -2,14 +2,11 @@ package com.example.rabbitmq.pubsub;
 
 import com.example.rabbitmq.config.RabbitConfig;
 import com.example.rabbitmq.model.SocialPost;
-import com.rabbitmq.client.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -25,7 +22,7 @@ public class SocialAnalyticsService {
     private final AtomicLong totalPosts = new AtomicLong(0);
 
     @RabbitListener(queues = RabbitConfig.ANALYTICS_QUEUE)
-    public void analyzePost(SocialPost post, Channel channel, Message message) {
+    public void analyzePost(SocialPost post) {
         try {
             logger.info("Analyzing post: {} by user: {}", post.getPostId(), post.getUsername());
             
@@ -60,17 +57,10 @@ public class SocialAnalyticsService {
             logger.info("Analytics completed for post: {}. Total posts tracked: {}", 
                        post.getPostId(), totalPosts.get());
             
-            // Acknowledge successful processing
-            channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
             
         } catch (Exception e) {
             logger.error("Error analyzing post: {} - Error: {}", post.getPostId(), e.getMessage());
-            try {
-                // Requeue for retry
-                channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, true);
-            } catch (IOException ioException) {
-                logger.error("Failed to nack message", ioException);
-            }
+            throw new RuntimeException("Failed to analyze post: " + post.getPostId(), e);
         }
     }
 

@@ -2,10 +2,8 @@ package com.example.rabbitmq.topic;
 
 import com.example.rabbitmq.config.RabbitConfig;
 import com.example.rabbitmq.model.IoTMessage;
-import com.rabbitmq.client.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Service;
 
@@ -15,7 +13,7 @@ public class HVACService {
     private static final Logger logger = LoggerFactory.getLogger(HVACService.class);
 
     @RabbitListener(queues = RabbitConfig.HVAC_QUEUE)
-    public void processTemperatureData(IoTMessage message, Channel channel, Message mqMessage) {
+    public void processTemperatureData(IoTMessage message) {
         try {
             logger.info("🌡️ HVAC System processing temperature data from {}: {}°C", 
                        message.getLocation(), message.getValue());
@@ -37,15 +35,9 @@ public class HVACService {
             // Log energy usage
             logEnergyUsage(message);
             
-            channel.basicAck(mqMessage.getMessageProperties().getDeliveryTag(), false);
-            
         } catch (Exception e) {
             logger.error("Error processing temperature data: {}", e.getMessage());
-            try {
-                channel.basicNack(mqMessage.getMessageProperties().getDeliveryTag(), false, true);
-            } catch (Exception nackException) {
-                logger.error("Failed to nack message", nackException);
-            }
+            throw new RuntimeException("HVAC processing failed", e);
         }
     }
 

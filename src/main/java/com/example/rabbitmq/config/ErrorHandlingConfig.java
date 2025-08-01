@@ -24,15 +24,6 @@ public class ErrorHandlingConfig implements RabbitListenerConfigurer {
     private static final Logger logger = LoggerFactory.getLogger(ErrorHandlingConfig.class);
 
     @Bean
-    public SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(ConnectionFactory connectionFactory) {
-        SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
-        factory.setConnectionFactory(connectionFactory);
-        factory.setErrorHandler(errorHandler());
-        factory.setRetryTemplate(retryTemplate());
-        return factory;
-    }
-
-    @Bean
     public ErrorHandler errorHandler() {
         return new ConditionalRejectingErrorHandler(customFatalExceptionStrategy());
     }

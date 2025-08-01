@@ -2,14 +2,11 @@ package com.example.rabbitmq.pointtopoint;
 
 import com.example.rabbitmq.config.RabbitConfig;
 import com.example.rabbitmq.model.Order;
-import com.rabbitmq.client.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
 import java.util.Random;
 
 @Service
@@ -19,7 +16,7 @@ public class PaymentService {
     private final Random random = new Random();
 
     @RabbitListener(queues = RabbitConfig.ORDER_QUEUE)
-    public void processPayment(Order order, Channel channel, Message message) {
+    public void processPayment(Order order) {
         try {
             logger.info("Processing payment for order: {}", order.getOrderId());
             
@@ -37,9 +34,6 @@ public class PaymentService {
                 // Simulate sending confirmation email
                 sendPaymentConfirmation(order);
                 
-                // Acknowledge message processing
-                channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
-                
             } else {
                 logger.warn("Payment failed for order: {}", order.getOrderId());
                 order.setStatus(Order.OrderStatus.CANCELLED);
@@ -47,27 +41,20 @@ public class PaymentService {
                 // Simulate sending failure notification
                 sendPaymentFailureNotification(order);
                 
-                // Reject message and don't requeue (send to DLX if configured)
-                channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, false);
+                // In AUTO mode, throwing an exception will cause message to be redelivered
+                // For payment failures, we don't want redelivery, so we just log and continue
             }
             
         } catch (InterruptedException e) {
             logger.error("Payment processing interrupted for order: {}", order.getOrderId());
             Thread.currentThread().interrupt();
-            try {
-                channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, true);
-            } catch (IOException ioException) {
-                logger.error("Failed to nack message", ioException);
-            }
+            // In AUTO mode, throwing an exception will cause redelivery
+            throw new RuntimeException("Payment processing interrupted", e);
         } catch (Exception e) {
             logger.error("Error processing payment for order: {} - Error: {}", 
                         order.getOrderId(), e.getMessage());
-            try {
-                // Requeue for retry
-                channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, true);
-            } catch (IOException ioException) {
-                logger.error("Failed to nack message", ioException);
-            }
+            // In AUTO mode, throwing an exception will cause redelivery
+            throw new RuntimeException("Payment processing failed", e);
         }
     }
 

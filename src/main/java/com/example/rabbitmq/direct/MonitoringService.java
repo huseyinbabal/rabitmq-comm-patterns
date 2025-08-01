@@ -2,14 +2,11 @@ package com.example.rabbitmq.direct;
 
 import com.example.rabbitmq.config.RabbitConfig;
 import com.example.rabbitmq.model.LogEntry;
-import com.rabbitmq.client.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -21,7 +18,7 @@ public class MonitoringService {
     private final ConcurrentHashMap<String, AtomicInteger> warningCounts = new ConcurrentHashMap<>();
 
     @RabbitListener(queues = RabbitConfig.WARNING_LOG_QUEUE)
-    public void processWarningLog(LogEntry logEntry, Channel channel, Message message) {
+    public void processWarningLog(LogEntry logEntry) {
         try {
             logger.warn("⚠️ WARNING DETECTED - App: {}, Message: {}", 
                        logEntry.getApplicationName(), logEntry.getMessage());
@@ -48,17 +45,11 @@ public class MonitoringService {
             logger.info("Warning processed for log: {} (Warning #{} for this type)", 
                        logEntry.getLogId(), warningCount);
             
-            // Acknowledge successful processing
-            channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
             
         } catch (Exception e) {
             logger.error("Error processing warning log: {} - Error: {}", 
                         logEntry.getLogId(), e.getMessage());
-            try {
-                channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, true);
-            } catch (IOException ioException) {
-                logger.error("Failed to nack message", ioException);
-            }
+            throw new RuntimeException("Failed to process warning log: " + logEntry.getLogId(), e);
         }
     }
 

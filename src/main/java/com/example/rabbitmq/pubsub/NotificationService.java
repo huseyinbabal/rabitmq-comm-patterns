@@ -2,14 +2,11 @@ package com.example.rabbitmq.pubsub;
 
 import com.example.rabbitmq.config.RabbitConfig;
 import com.example.rabbitmq.model.SocialPost;
-import com.rabbitmq.client.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
 import java.util.List;
 
 @Service
@@ -18,7 +15,7 @@ public class NotificationService {
     private static final Logger logger = LoggerFactory.getLogger(NotificationService.class);
 
     @RabbitListener(queues = RabbitConfig.NOTIFICATION_QUEUE)
-    public void sendNotifications(SocialPost post, Channel channel, Message message) {
+    public void sendNotifications(SocialPost post) {
         try {
             logger.info("Processing notifications for post: {} by user: {}", 
                        post.getPostId(), post.getUsername());
@@ -38,18 +35,11 @@ public class NotificationService {
             
             logger.info("Notifications sent for post: {}", post.getPostId());
             
-            // Acknowledge successful processing
-            channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
             
         } catch (Exception e) {
             logger.error("Error sending notifications for post: {} - Error: {}", 
                         post.getPostId(), e.getMessage());
-            try {
-                // Requeue for retry
-                channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, true);
-            } catch (IOException ioException) {
-                logger.error("Failed to nack message", ioException);
-            }
+            throw new RuntimeException("Failed to send notifications for post: " + post.getPostId(), e);
         }
     }
 

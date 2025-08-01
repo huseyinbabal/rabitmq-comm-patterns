@@ -2,14 +2,11 @@ package com.example.rabbitmq.direct;
 
 import com.example.rabbitmq.config.RabbitConfig;
 import com.example.rabbitmq.model.LogEntry;
-import com.rabbitmq.client.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -22,7 +19,7 @@ public class LogAnalyticsService {
     private final AtomicLong totalInfoLogs = new AtomicLong(0);
 
     @RabbitListener(queues = RabbitConfig.INFO_LOG_QUEUE)
-    public void processInfoLog(LogEntry logEntry, Channel channel, Message message) {
+    public void processInfoLog(LogEntry logEntry) {
         try {
             logger.info("ℹ️ INFO LOG - App: {}, Message: {}", 
                        logEntry.getApplicationName(), logEntry.getMessage());
@@ -48,17 +45,11 @@ public class LogAnalyticsService {
             logger.debug("Info log processed: {} - Total info logs: {}", 
                         logEntry.getLogId(), totalInfoLogs.get());
             
-            // Acknowledge successful processing
-            channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
             
         } catch (Exception e) {
             logger.error("Error processing info log: {} - Error: {}", 
                         logEntry.getLogId(), e.getMessage());
-            try {
-                channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, true);
-            } catch (IOException ioException) {
-                logger.error("Failed to nack message", ioException);
-            }
+            throw new RuntimeException("Failed to process info log: " + logEntry.getLogId(), e);
         }
     }
 

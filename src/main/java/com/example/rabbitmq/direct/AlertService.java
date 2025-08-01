@@ -2,14 +2,11 @@ package com.example.rabbitmq.direct;
 
 import com.example.rabbitmq.config.RabbitConfig;
 import com.example.rabbitmq.model.LogEntry;
-import com.rabbitmq.client.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -22,7 +19,7 @@ public class AlertService {
     private final ConcurrentHashMap<String, AtomicInteger> errorCounts = new ConcurrentHashMap<>();
 
     @RabbitListener(queues = RabbitConfig.ERROR_LOG_QUEUE)
-    public void processErrorLog(LogEntry logEntry, Channel channel, Message message) {
+    public void processErrorLog(LogEntry logEntry) {
         try {
             logger.error("🚨 CRITICAL ERROR DETECTED - App: {}, Message: {}", 
                         logEntry.getApplicationName(), logEntry.getMessage());
@@ -51,18 +48,12 @@ public class AlertService {
             logger.info("Error alert processed for log: {} (Error #{} for this type)", 
                        logEntry.getLogId(), errorCount);
             
-            // Acknowledge successful processing
-            channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
             
         } catch (Exception e) {
             logger.error("Error processing error log alert: {} - Error: {}", 
                         logEntry.getLogId(), e.getMessage());
-            try {
-                // Requeue for retry - critical that error alerts are processed
-                channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, true);
-            } catch (IOException ioException) {
-                logger.error("Failed to nack message", ioException);
-            }
+            // Critical that error alerts are processed - throw to trigger retry
+            throw new RuntimeException("Failed to process error log alert: " + logEntry.getLogId(), e);
         }
     }
 

@@ -2,14 +2,11 @@ package com.example.rabbitmq.pubsub;
 
 import com.example.rabbitmq.config.RabbitConfig;
 import com.example.rabbitmq.model.SocialPost;
-import com.rabbitmq.client.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.List;
@@ -23,7 +20,7 @@ public class TimelineService {
     private final ConcurrentHashMap<String, List<SocialPost>> userTimelines = new ConcurrentHashMap<>();
 
     @RabbitListener(queues = RabbitConfig.TIMELINE_QUEUE)
-    public void updateTimeline(SocialPost post, Channel channel, Message message) {
+    public void updateTimeline(SocialPost post) {
         try {
             logger.info("Updating timeline for post: {} by user: {}", post.getPostId(), post.getUsername());
             
@@ -45,18 +42,11 @@ public class TimelineService {
             logger.info("Timeline updated for {} followers of user: {}", 
                        followers.size(), post.getUsername());
             
-            // Acknowledge successful processing
-            channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
             
         } catch (Exception e) {
             logger.error("Error updating timeline for post: {} - Error: {}", 
                         post.getPostId(), e.getMessage());
-            try {
-                // Requeue for retry
-                channel.basicNack(message.getMessageProperties().getDeliveryTag(), false, true);
-            } catch (IOException ioException) {
-                logger.error("Failed to nack message", ioException);
-            }
+            throw new RuntimeException("Failed to update timeline for post: " + post.getPostId(), e);
         }
     }
 
